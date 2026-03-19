@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eventos React - Arquivo Único</title>
+
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        background-color: #f9f9f9;
+      }
+      .container {
+        max-width: 400px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      button {
+        padding: 8px 16px;
+        cursor: pointer;
+        border: none;
+        border-radius: 4px;
+        background-color: #007bff;
+        color: white;
+      }
+      button.limpar {
+        background-color: #dc3545;
+      }
+      .botoes {
+        display: flex;
+        gap: 10px;
+      }
+      ul {
+        padding-left: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      // Como não estamos usando "import", pegamos o useState de dentro do objeto global React
+      const { useState } = React;
+
+      function CaixaDeComentarios() {
+        const [comentario, setComentario] = useState("");
+        const [listaDeComentarios, setListaDeComentarios] = useState([]);
+
+        // onChange
+        const lidarComMudanca = (e) => {
+          setComentario(e.target.value);
+        };
+
+        // onKeyDown
+        const lidarComTecla = (e) => {
+          if (e.key === "Escape") {
+            setComentario("");
+          }
+        };
+
+        // onClick
+        const limparCampo = () => {
+          setComentario("");
+        };
+
+        // onSubmit
+        const lidarComEnvio = (e) => {
+          e.preventDefault();
+
+          if (comentario.trim() === "") {
+            alert("Por favor, digite um comentário válido.");
+            return;
+          }
+
+          setListaDeComentarios([...listaDeComentarios, comentario]);
+          setComentario("");
+        };
+
+        return (
+          <div className="container">
+            <h2>Deixe seu comentário</h2>
+
+            <form onSubmit={lidarComEnvio}>
+              <input
+                type="text"
+                value={comentario}
+                onChange={lidarComMudanca}
+                onKeyDown={lidarComTecla}
+                placeholder="Digite algo... (Esc para limpar)"
+              />
+
+              <div className="botoes">
+                <button type="submit">Enviar</button>
+                <button type="button" className="limpar" onClick={limparCampo}>
+                  Limpar
+                </button>
+              </div>
+            </form>
+
+            <ul>
+              {listaDeComentarios.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+
+      // 5. Dizemos ao ReactDOM para renderizar nossa caixa dentro da div com id="root"
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<CaixaDeComentarios />);
+    </script>
+  </body>
+</html>
