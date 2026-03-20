@@ -251,10 +251,16 @@
       Gerencia o estado do histórico e o salva/carrega do localStorage (memória do navegador).
 
       Analogia: O professor que mantém o quadro de avisos atualizado.
+      
+      [PORQUÊ] Provider reutiliza estado com múltiplos consumidores (Calculator + History)
+      sem Props Drilling. Se passássemos history como prop, teríamos cascata por 5 níveis.
+      [CONCEITO] Injeção de Dependência via Context: Consumer obtém valor sem props intermediárias.
       */
       function CalculatorProvider({ children }) {
-        // Histórico de operações (persistido no localStorage).
-        // `history` é um array de strings no formato "expressão=resultado".
+        // [PORQUÊ] localStorage garante que histórico persiste entre refresh da página.
+        // useState + localStorage cria hybrid: memória rápida + persistência durável.
+        // [PONTO CEGO] localStorage é síncrono! Em apps grandes, puede bloquear UI.
+        // Iniciantes não percebem que localStorage.setItem() é blocking.
         const [history, setHistory] = React.useState([]);
         // Chave usada para armazenar e recuperar o histórico no localStorage.
         const historyStorageKey = "history";
@@ -285,6 +291,13 @@
         /*
         useEffect: Hook do React que executa código quando o componente monta.
         Aqui, carrega o histórico salvo no localStorage.
+        
+        [PORQUÊ] Dependency array vazio [] garante que useEffect roda UMA VEZ.
+        Se omitisse [], rodaria a cada render (muito custoso + loop infinito possível).
+        [CONCEITO] Hook setup: useEffect é equivalente a componentDidMount + componentDidUpdate seletivo.
+        [PONTO CEGO] useEffect roda APÓS render, não antes. O estado inicial vem de React.useState([]). 
+        localStorage.getItem é síncrono, bloqueia até completar. Iniciantes não veem impacto
+        de performance em dados pequenos, mas em apps grandes é problema.
         */
         // Quando o Provider é montado, carrega o histórico armazenado no localStorage.
         // O array de dependências vazio ([]) garante que isso execute apenas uma vez.
@@ -311,11 +324,18 @@
 
       Analogia: É como o cérebro da calculadora. Recebe entradas (botões pressionados) e decide
       o que fazer: atualizar a operação, calcular resultado, limpar, etc.
+      
+      [PORQUÊ] Hook customizado (não primitivo como useState) criptografa lógica complexa
+      e a reutiliza em múltiplos componentes sem duplicação. Aqui, Calculator reutiliza useCalculator.
+      [CONCEITO] Hook composition: Hooks chamar Hooks (useCalculator -> useContext).
+      [PONTO CEGO] Hooks têm REGRAS restritivas: não podem ser condicionals, devem estar
+      no topo do componente. Iniciantes tentam useCalculator() dentro de if(), quebrando.
+      Para contornar, retorne um objeto com funções do hook.
       */
       function useCalculator() {
-        // Representa a expressão matemática atual composta pelos botões.
-        // Exemplo: "12+34".
-        const [operation, setOperation] = React.useState("");
+        // [PORQUÊ] Dois estados separados: operation (entrada) e result (saída).
+        // Não misture em um estado único, pois cada um tem ciclo de vida próprio.
+        // [CONCEITO] Coesão: cada estado mapeia um conceito distinto.
 
         // Valor exibido como resultado da operação.
         // Exemplo: "46".
@@ -510,7 +530,15 @@
             {/* Componente que mostra operação/resultado */}
             <CalculatorDisplay operation={operation} result={result} />
 
-            {/* Grade de botões: renderiza cada linha e botão da matriz buttons */}
+            {/* Grade de botões: renderiza cada linha e botão da matriz buttons 
+            
+            [PORQUÊ] Duplo map (nested): primeiro map por linhas, depois por botões em cada linha.
+            Reduz repetição: 5x5 grid definido em 1 array de objects, não hardcoded em JSX.
+            [CONCEITO] Composição declarativa: descreve estrutura, React renderiza.
+            [PONTO CEGO] ANTI-PATTERN: key={index} nos maps internos causa bug se reordenar!
+            Se filtrasse buttons depois, indices mudariam e React reutilizaria estados errados.
+            Solução: use IDs únicos (aqui button.input funciona porque é único).
+            */}
             <div className="flex flex-col gap-3">
               {/* Gera as linhas de botões da calculadora a partir da matriz "buttons". */}
               {buttons.map((row, index) => (

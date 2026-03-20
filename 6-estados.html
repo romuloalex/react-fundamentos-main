@@ -1,55 +1,85 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rocketseat - React.js - Fundamentos</title>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rocketseat - React.js - Fundamentos</title>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+      // ================================================
+      // Componente <Counter />: estado local e atualizações determinísticas
+      // ================================================
+      // 🎯 PORQUÊ usar state aqui?
+      // - O contador representa UI mutável controlada.
+      // - O React mantém essa informação entre renderizações no mesmo componente.
+      // - Isso garante persistência de valor (não recomeça de 0 a cada render).
+      function Counter() {
+        const [counter, setCounter] = React.useState(0);
 
-  <script type="text/babel">
-    function Counter() {
-      const [counter, setCounter] = React.useState(0)
+        // 🔍 PONTO CEGO - Imutabilidade exigida pela Reconciliação:
+        // setCounter não altera `counter` diretamente; cria nova versão do estado.
+        // Iniciantes acham que `counter += 1` funciona, mas isso não notifica o reconciler.
+        // `setCounter` é o gatilho que fura o loop de renderização reativa do React.
 
-      return (
-        <>
-          <p>Contador: {counter}</p>
-          <button
-            onClick={() => setCounter(10)}
-          >
-            Atualizar
-          </button>
-          <button
-            onClick={() => setCounter((prevValue) => prevValue + 1)}
-          >
-            Incrementar
-          </button>
-          <button
-            onClick={() => setCounter((prevValue) => prevValue - 1)}
-          >
-            Decrementar
-          </button>
-        </>
-      )
-    }
+        // 🎯 CONCEITO CHAVE: Função de atualização (updater function) e closure.
+        // - onClick recebe callback => setCounter(prev => prev + 1).
+        // - `prev` reflete o estado certo no momento da execução,
+        //   mesmo com várias chamadas rápidas (debounce manual não necessário).
+        // - Se você usasse setCounter(counter + 1), poderia esbarrar em STALE CLOSURE
+        //   quando o estado não foi atualizado ainda (desincronização com render atual).
 
-    function App() {
-      return (
-        <main>
-          <Counter />
-        </main>
-      )
-    }
+        return (
+          <>
+            <p>Contador: {counter}</p>
+            {/*
+              🎯 PORQUÊ o primeiro botão faz setCounter(1)?
+              - Força um estado determinístico: útil para reset explícito.
+              - Evita confusão de fluxos incrementais e descreve intenção clara.
+            */}
+            <button onClick={() => setCounter(1)}>Atualizar</button>
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-  </script>
-</body>
+            {/*
+              🌊 Incremento e decremento de forma segura via função
+              - `prevValue => prevValue + 1` respeita Imutabilidade e é atômico.
+              - Garante resultado correto independente do batching (empacotamento de eventos).
+            */}
+            <button onClick={() => setCounter((prevValue) => prevValue + 1)}>
+              Incrementar
+            </button>
+            <button onClick={() => setCounter((prevValue) => prevValue - 1)}>
+              Decrementar
+            </button>
+          </>
+        );
+      }
 
+      function App() {
+        // 🎯 PORQUÊ um componente App minimalista?
+        // - Separa árvore raiz de lógica de estado específica (Counter).
+        // - Evita Props Drilling desnecessário neste exemplo simples.
+        // - Facilita inclusão futura de múltiplos widgets sem misturar lógica.
+        return (
+          <main>
+            <Counter />
+          </main>
+        );
+      }
+
+      // ================================================
+      // Entrypoint da aplicação: montagem da árvore React
+      // ================================================
+      // 🎯 PORQUÊ createRoot()?
+      // - Com React 18, suporta modo concorrente e atualizações assíncronas.
+      // - O navegador controla o nodo #root, enquanto o React controla os filhos.
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>

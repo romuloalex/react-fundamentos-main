@@ -1,31 +1,36 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rocketseat - React.js - Fundamentos</title>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rocketseat - React.js - Fundamentos</title>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+      // [PORQUÊ] Componente App é o primeiro nó da árvore React.
+      // Todos os outros componentes são filhos deste, diretos ou indiretos.
+      // Separar em componentes isolados melhora reusabilidade e clareza.
+      function App() {
+        // [CONCEITO] JSX (JavaScript + XML): sintaxe que parece HTML mas é JS transpilado.
+        // Babel converte <main> em React.createElement('main', ...) em tempo de execução.
+        return (
+          <main class="p-3">{/* Espaço para seus componentes React */}</main>
+        );
+      }
 
-  <script type="text/babel">
-    function App() {
-      return (
-        <main class="p-3">
-          ...
-        </main>
-      )
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-  </script>
-</body>
-
+      // Entry point: React 18+ usa createRoot em vez de ReactDOM.render.
+      // createRoot() permite modo concorrente e atualizações assíncronas.
+      // [PONTO CEGO] O <div id="root"> é destruído e substituído, não atualizado.
+      // React toma posse total dele; modificar HTML direto causa dessincronização.
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>

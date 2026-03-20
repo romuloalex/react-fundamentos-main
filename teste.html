@@ -65,37 +65,76 @@
       // Como não estamos usando "import", pegamos o useState de dentro do objeto global React
       const { useState } = React;
 
+      // [PORQUÊ] Componente encapsula estado local (comentário + lista).
+      // Separar em componente isolado permite reutilização e facilita testes.
+      // Se múltiplos formulários compartilhassem lista, seria preciso Props Drilling
+      // ou Context. Aqui, tudo isolado = menos complexidade.
       function CaixaDeComentarios() {
+        // [PORQUÊ] comentario é controlado (value={comentario} + onChange).
+        // Isso garante que React sempre tem a fonte de verdade (state), não o DOM.
+        // [CONCEITO] Controlled component: value sincronizado com estado em tempo real.
+        // [PONTO CEGO] onChange lê event.target.value SEM esperar (síncrono).
+        // Se tentasse acessar dentro de Promise ou setTimeout, value seria antigo.
         const [comentario, setComentario] = useState("");
+
+        // [PORQUÊ] listaDeComentarios é imutável (criamos novo array com spread [...]).
+        // Isso permite React comparar referências na Reconciliação.
+        // [CONCEITO] Imutabilidade é pré-requisito para detecção eficiente de mudanças.
         const [listaDeComentarios, setListaDeComentarios] = useState([]);
 
-        // onChange
+        // [PORQUÊ] onChange disparado a CADA caractere digitado no input.
+        // Isso permite que React mantenha estado sincronizado em tempo real.
+        // [CONCEITO] Event handler é closure: captura setComentario do escopo superior.
+        // [PONTO CEGO] e.target.value é seguro AQUI, dentro do callback.
+        // Acessar depois (em Promise) retornaria undefined por event pooling.
         const lidarComMudanca = (e) => {
           setComentario(e.target.value);
         };
 
-        // onKeyDown
+        // [PORQUÊ] onKeyDown para Escape permite atalho UX (limpar sem botão).
+        // [CONCEITO] Event delegation: teclado triggers handler, React dispatches callback.
+        // [PONTO CEGO] e.key vs e.keyCode: e.key é string legível ("Escape"), melhor prática.
+        // e.keyCode é número (27 para Escape) - mais brittle, menos legível.
         const lidarComTecla = (e) => {
           if (e.key === "Escape") {
             setComentario("");
           }
         };
 
-        // onClick
+        // [PORQUÊ] onClick simples para reset: não reutiliza lidarComTecla.
+        // Separar handlers é melhor prática (cada função = uma responsabilidade).
         const limparCampo = () => {
           setComentario("");
         };
 
-        // onSubmit
+        // [PORQUÊ] onSubmit em FORM (não onClick em button).
+        // Form dispara onSubmit em Enter keypress OU click no botão.
+        // Input dentro de form responde a Enter automaticamente (UX padrão).
+        // [CONCEITO] Form semantics: form agrega múltiplos inputs + submit handling.
+        // [PONTO CEGO] Esquecer e.preventDefault() causa page reload (submit nativo).
+        // e.preventDefault() bloqueia comportamento padrão, permitindo controle React.
         const lidarComEnvio = (e) => {
+          // [PORQUÊ] preventDefault ANTES de lógica.
+          // Se não previne, página reloadaria ANTES de setListaDeComentarios executar.
           e.preventDefault();
 
+          // [PORQUÊ] Validação trim() evita strings vazias ou só espaços.
+          // [CONCEITO] Validação no handler = Fail-fast: rejeita entrada inválida antes de commit.
           if (comentario.trim() === "") {
             alert("Por favor, digite um comentário válido.");
             return;
           }
 
+          // [PORQUÊ] Spread operator [...listaDeComentarios, comentario] cria novo array.
+          // React detecta mudança de referência (old !== new) e re-renderiza.
+          // [CONCEITO] Imutabilidade + Referential equality = triggers Reconciliação.
+          // [PONTO CEGO] ERRADO: listaDeComentarios.push(comentario) muta original.
+          // Mutation não notifica React (estado parece imutável, mas é trapaça).
           setListaDeComentarios([...listaDeComentarios, comentario]);
+
+          // [PORQUÊ] Limpar comentario DEPOIS de adicionar à lista.
+          // Ordem importa: lista atualiza ANTES do input limpar.
+          // Isso garante UX clara: "digitei → adicionei → campo limpo".
           setComentario("");
         };
 
@@ -104,6 +143,10 @@
             <h2>Deixe seu comentário</h2>
 
             <form onSubmit={lidarComEnvio}>
+              {/* [PORQUÊ] type="text" simples (não email/number).
+                  Aqui comentários são strings puras, sem validação de tipo.
+                  [CONCEITO] Input type define validação nativa (email, number, etc).
+                  Este é type="text" = aceita qualquer string. */}
               <input
                 type="text"
                 value={comentario}
@@ -113,6 +156,11 @@
               />
 
               <div className="botoes">
+                {/* [PORQUÊ] type="submit" vs type="button".
+                    submit: submete form (onSubmit dispara).
+                    button: clica sem form context (onClick dispara).
+                    [CONCEITO] Type define semântica do botão no fluxo HTML.
+                    [PONTO CEGO] Esquecer type="button" no limpar causa submit acidental! */}
                 <button type="submit">Enviar</button>
                 <button type="button" className="limpar" onClick={limparCampo}>
                   Limpar
@@ -120,6 +168,12 @@
               </div>
             </form>
 
+            {/* [PORQUÊ] List renderiza comentários de forma controlada.
+                Cada item é React Element criado por .map().
+                [PONTO CEGO] CRÍTICO: key={index} é ANTI-PATTERN aqui!
+                Se usuário deletasse comentário 1, index 2 viraria 1 (React confunde-se).
+                [CONCEITO] Key com index = Diffing quebrado em listas mutáveis.
+                Melhor: usar ID único (aqui poderia ser uuid ou timestamp único). */}
             <ul>
               {listaDeComentarios.map((item, index) => (
                 <li key={index}>{item}</li>
@@ -129,8 +183,15 @@
         );
       }
 
-      // 5. Dizemos ao ReactDOM para renderizar nossa caixa dentro da div com id="root"
+      // [PORQUÊ] createRoot estabelece raiz do Virtual DOM.
+      // React 18+ (em vez de render() antigo) permite concurrent rendering.
+      // [CONCEITO] Root é ponto de entrada: React controla tudo dentro dela.
+      // [PONTO CEGO] Modificar HTML do root direto causa dessincronização com state.
       const root = ReactDOM.createRoot(document.getElementById("root"));
+
+      // [PORQUÊ] <CaixaDeComentarios /> (JSX) e não CaixaDeComentarios (função).
+      // JSX é syntactic sugar. <Comp /> transpila para React.createElement(Comp, null).
+      // React precisa de React Element object, não da função.
       root.render(<CaixaDeComentarios />);
     </script>
   </body>

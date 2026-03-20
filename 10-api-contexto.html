@@ -1,98 +1,121 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rocketseat - React.js - Fundamentos</title>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rocketseat - React.js - Fundamentos</title>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+      // [PORQUÊ] React.createContext cria um container de dados globais acessível a
+      // qualquer filho sem Props Drilling (passar props por 10 níveis de componentes).
+      // [CONCEITO] Provider Pattern: Counter e CounterList lêem do mesmo contexto sem
+      // que App precise repassar props. Desacoplamento de hierarquia > passagem de props.
+      const CounterContext = React.createContext();
 
-  <script type="text/babel">
-    const CounterContext = React.createContext();
+      // [PORQUÊ] Provider é um wrapper que fornece valor a todos os consumidores abaixo.
+      // Se não envolvessemos App com CounterProvider, useContext lancaria erro.
+      // [CONCEITO] Contexto é reativo: qualquer mudança em savedCounts notifica todos
+      // os consumidores (Counter + CounterList) e dispara re-render seletivamente.
+      function CounterProvider({ children }) {
+        const [savedCounts, setSavedCounts] = React.useState([]);
 
-    function CounterProvider({ children }) {
-      const [savedCounts, setSavedCounts] = React.useState([]);
+        // [PORQUÊ] Updater function (...prev) garante que múltiplos saveCount() não
+        // sobrescrevam um ao outro (Imutabilidade + atomicidade).
+        // [PONTO CEGO] Iniciantes pensam setSavedCounts(savedCounts.push(count)) funciona.
+        // Não! push() retorna length, não array. Além disso, mutation direta não notifica
+        // o reconciliador. [...prev, count] cria novo array (Imutabilidade) e dispara re-render.
+        function saveCount(count) {
+          setSavedCounts((prev) => [...prev, count]);
+        }
 
-      function saveCount(count) {
-        setSavedCounts((prev) => [...prev, count])
+        return (
+          // [PORQUÊ] Provider.value expõe dados para consumidores via useContext.
+          // Se um consumidor não estiver dentro de Provider, useContext falha.
+          // [CONCEITO] Publicador-Assinante: Provider = publicador, Counter + CounterList = assinantes.
+          // Qualquer mudança em value re-renderiza assinantes seletivamente (poupa reconciliações inúteis).
+          <CounterContext.Provider value={{ savedCounts, saveCount }}>
+            {children}
+          </CounterContext.Provider>
+        );
       }
 
-      return (
-        <CounterContext.Provider
-          value={{ savedCounts, saveCount }}
-        >
-          {children}
-        </CounterContext.Provider>
-      )
-    }
+      function Counter() {
+        const [counter, setCounter] = React.useState(0);
+        // [PORQUÊ] useContext(CounterContext) acessa dados do Provider sem props.
+        // Counter não precisa que App ou CounterProvider passe saveCount via props.
+        // [CONCEITO] Injeção de Dependência via Contexto: desacoplamento de hierarquia.
+        // [PONTO CEGO] re-render: SE value do Provider muda, Counter re-renderiza MESMO
+        // que seu próprio state não tenha mudado. Iniciales acham que contexto é "grátis".
+        // Otimize com useMemo(value) no Provider se há consumidores pesados.
+        const { saveCount, savedCounts } = React.useContext(CounterContext);
 
-    function Counter() {
-      const [counter, setCounter] = React.useState(0)
-      const { saveCount, savedCounts } = React.useContext(CounterContext)
+        return (
+          <>
+            {/* [PORQUÊ] savedCounts[length - 1] lê o último elemento sem filtro/map.
+              [CONCEITO] Acesso direto é seguro porque savedCounts é array controlado. */}
+            <p>
+              Contador: {counter} - Último valor salvo:{" "}
+              {savedCounts[savedCounts.length - 1] || "-"}
+            </p>
+            <button onClick={() => setCounter(10)}>Atualizar</button>
+            <button onClick={() => setCounter((prevValue) => prevValue + 1)}>
+              Incrementar
+            </button>
+            <button onClick={() => setCounter((prevValue) => prevValue - 1)}>
+              Decrementar
+            </button>
+            <button onClick={() => saveCount(counter)}>Salvar</button>
+            {/* [PORQUÊ] saveCount dispara setSavedCounts, que notifica Provider e re-renderiza
+              CounterList. Counter também re-renderiza mas não precisa fazer nada (memoização). */}
+          </>
+        );
+      }
 
-      return (
-        <>
-          <p>Contador: {counter} - Último valor salvo: {savedCounts[savedCounts.length - 1] || '-'}</p>
-          <button
-            onClick={() => setCounter(10)}
-          >
-            Atualizar
-          </button>
-          <button
-            onClick={() => setCounter((prevValue) => prevValue + 1)}
-          >
-            Incrementar
-          </button>
-          <button
-            onClick={() => setCounter((prevValue) => prevValue - 1)}
-          >
-            Decrementar
-          </button>
-          <button
-            onClick={() => saveCount(counter)}
-          >
-            Salvar
-          </button>
-        </>
-      )
-    }
+      function CounterList() {
+        // [PORQUÊ] useContext aqui extrai savedCounts do Provider.
+        // CounterList é desfragmentado de Counter: ambos lêem contexto mas vivem isolados.
+        // [CONCEITO] Subcription Pattern: CounterList só renderiza quando savedCounts muda.
+        // Counter + CounterList coexistem sem Props Drilling. Escalável para N componentes.
+        const { savedCounts } = React.useContext(CounterContext);
 
-    function CounterList() {
-      const { savedCounts } = React.useContext(CounterContext)
+        return (
+          <div>
+            <h2>Valores salvos</h2>
 
-      return (
-        <div>
-          <h2>Valores salvos</h2>
+            <ul>
+              {savedCounts.map((value, index) => (
+                <li key={`item-${index}`}>{value}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
 
-          <ul>
-            {savedCounts.map((value, index) => (
-              <li key={`item-${index}`}>{value}</li>
-            ))}
-          </ul>
-        </div>
-      )
-    }
+      function App() {
+        // [PORQUÊ] App encapsula tudo em CounterProvider para garantir que
+        // Counter e CounterList têm acesso ao contexto.
+        // [CONCEITO] Composição com Contexto: Provider é camada de injeção de dependências.
+        // Se Counter/CounterList fossem silos isolados, seria preciso Props Drilling
+        // (App -> Counter, App -> CounterList). Contexto permite bypass elegante.
+        return (
+          <main>
+            <CounterProvider>
+              <Counter />
+              <CounterList />
+            </CounterProvider>
+          </main>
+        );
+      }
 
-    function App() {
-      return (
-        <main>
-          <CounterProvider>
-            <Counter />
-            <CounterList />
-          </CounterProvider>
-        </main>
-      )
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-  </script>
-</body>
-
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>

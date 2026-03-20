@@ -1,42 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rocketseat - React.js - Fundamentos</title>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rocketseat - React.js - Fundamentos</title>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+      function ListNames() {
+        // [PORQUÊ] state gerencia a lista porque dados dinâmicos em React devem
+        // vir de estado/props, não de valores hardcoded. Isso permite atualizações
+        // futuras sem re-escrita da função.
+        // [CONCEITO] Imutabilidade: mesmo que nunca atualizemos via setNames,
+        // o padrão treinado aqui preparao você para adicionar/remover items depois.
+        const [names] = React.useState(["Ana", "Bruno", "Carlos", "Camila"]);
 
-  <script type="text/babel">
-    function ListNames() {
-      const [names] = React.useState(["Ana", "Bruno", "Carlos", "Camila"]);
+        return (
+          <ul>
+            {
+              // [PORQUÊ] map() em vez de for/forEach: React trabalha com expressões,
+              // não statements. map() retorna um array de JSX que React renderiza.
+              // [CONCEITO] Declarativo vs Imperativo: você declara "transforma cada nome
+              // em <li>" (map), não "for i, crie um li" (imperativo). React otimiza melhor
+              // o declarativo pois compreende sua intenção.
+              names.map((name, index) => (
+                // [PONTO CEGO] ⚠️ ANTI-PATTERN: Usar 'index' como key é uma ilusão de segurança.
+                // Se a lista for reordenada ou items removidos, React perde a identidade do elemento
+                // e pode causar bugs sutis (estados perdidos, inputs duplicados).
+                // Solução: use um ID único do seu backend ou biblioteca como uuid().
+                // [PORQUÊ] A key comunica ao algoritmo de Reconciliação do React qual elemento
+                // do DOM reutilizar vs destruir, preservando estado interno e performance.
+                // [CONCEITO] Diffing Algorithm: React compara keys anterior/nova para decidir
+                // se reutiliza ou recria o nó no DOM.
+                <li key={`${index}-${name}`}>{name}</li>
+              ))
+            }
+          </ul>
+        );
+      }
 
-      return (
-        <ul>
-          {names.map((name, index) => (
-            <li key={`${index}-${name}`}>{name}</li>
-          ))}
-        </ul>
-      )
-    }
+      function App() {
+        // [PORQUÊ] Separar <ListNames /> em componente isolado em vez de inline
+        // permite reutilização e facilita testes. Se houvesse múltiplas listas,
+        // você não repetiria o map() inteiro.
+        // [CONCEITO] Decomposição/Componentização: React otimiza re-renders porque cada
+        // componente que não mudou props/state não regenera seu JSX (memoização).
+        return (
+          <main>
+            <ListNames />
+          </main>
+        );
+      }
 
-    function App() {
-      return (
-        <main>
-          <ListNames />
-        </main>
-      )
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-  </script>
-</body>
-
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>

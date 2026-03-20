@@ -1,64 +1,88 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rocketseat - React.js - Fundamentos</title>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rocketseat - React.js - Fundamentos</title>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+      function Counter() {
+        // [PORQUÊ] State é essencial aqui porque cada clique deve gatilhar re-render,
+        // atualizando o DOM com o novo counter. Sem estado, cliques seriam ignorados.
+        // [CONCEITO] Imutabilidade: nunca modifique 'counter' diretamente (counter++)
+        // pois React não detectaria mudança. setCounter desencadeia re-render.
+        const [counter, setCounter] = React.useState(0);
 
-  <script type="text/babel">
-    function Counter() {
-      const [counter, setCounter] = React.useState(0)
+        // [PORQUÊ] Guardar condicional no topo (early-return) antes da renderização normal
+        // evita renderizar toda a árvore se a condição for verdade. Melhora performance
+        // e clareza lógica do fluxo do componente.
+        // [CONCEITO] Padrão Guard Clause: retornar cedo permite ramificações claras.
+        if (counter > 20) {
+          return <p>Maior que 20</p>;
+        }
 
-      if (counter > 20) {
-        return <p>Maior que 20</p>
+        return (
+          <>
+            <p>Contador: {counter}</p>
+
+            {/* [PORQUÊ] Ternário renderiza condicionalmente DENTRO do DOM já existente,
+                sem destruir/recriar o <p>. Útil quando só o conteúdo muda.
+                [PONTO CEGO] Iniciantes confundem: ternário renderiza sempre o <p>,
+                mas muda o texto DENTRO. Compare com && que remove o elemento inteiro.
+                [CONCEITO] Reconciliação: React detecta 'Maior' → 'Menor' como string diff. */}
+            <p>{counter > 10 ? "Maior que 10" : "Menor ou igual a 10"}</p>
+
+            {/* [PORQUÊ] Logical AND (&&) renderiza condicionalmente REMOVER/ADICIONAR o <p> inteiro.
+                Quando false, retorna falsy (null), React não renderiza.
+                [PONTO CEGO] Ilusão: 'troca entre true/false'? Não! Remove ou adiciona o nó do DOM.
+                [CONCEITO] Short-circuit evaluation: true && <p> renderiza; false → null. */}
+            {counter > 15 && <p>Maior que 15</p>}
+
+            {/* [PORQUÊ] setCounter(10) substitui o state inteiro por 10.
+                Use quando quer reset ou atribuição direta.
+                [PONTO CEGO] Closure: essa arrow função captura setCounter do escopo.
+                Imutabilidade está garantida porque 10 é primitivo. */}
+            <button onClick={() => setCounter(10)}>Atualizar</button>
+            {/* [PORQUÊ] setCounter(updater) recebe FUNÇÃO que lê estado anterior (prevValue).
+                Crítico quando múltiplos setState em fila: React garante que prevValue
+                sempre será o state ATUAL, evitando race conditions.
+                [PONTO CEGO] Closure dentro de closure! updater captura setState.
+                Iniciantes esquecem que são síncronos, não assincronos.
+                [CONCEITO] Updater functions = garantia de consistência e batching. */}
+            <button onClick={() => setCounter((prevValue) => prevValue + 1)}>
+              Incrementar
+            </button>
+            {/* [PORQUÊ] Mesmo padrão do Incrementar: updater function garante que
+                subtrações sequenciais não perdem atualizações.
+                [CONCEITO] Idempotência: prevValue - 1 sempre produz resultado esperado. */}
+            <button onClick={() => setCounter((prevValue) => prevValue - 1)}>
+              Decrementar
+            </button>
+          </>
+        );
       }
 
-      return (
-        <>
-          <p>Contador: {counter}</p>
+      // [PORQUÊ] App encapsula Counter em <main>. Separar em componentes permite
+      // reutilização sem duplicar lógica.
+      // [CONCEITO] Composição: App não passa props para Counter.
+      // Counter é caixa-preta com lógica interna isolada.
+      function App() {
+        return (
+          <main>
+            <Counter />
+          </main>
+        );
+      }
 
-          <p>{counter > 10 ? 'Maior que 10' : 'Menor ou igual a 10'}</p>
-
-          {counter > 15 && <p>Maior que 15</p>}
-
-          <button
-            onClick={() => setCounter(10)}
-          >
-            Atualizar
-          </button>
-          <button
-            onClick={() => setCounter((prevValue) => prevValue + 1)}
-          >
-            Incrementar
-          </button>
-          <button
-            onClick={() => setCounter((prevValue) => prevValue - 1)}
-          >
-            Decrementar
-          </button>
-        </>
-      )
-    }
-
-    function App() {
-      return (
-        <main>
-          <Counter />
-        </main>
-      )
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-  </script>
-</body>
-
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>

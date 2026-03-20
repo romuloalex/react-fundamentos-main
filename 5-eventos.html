@@ -1,80 +1,115 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rocketseat - React.js - Fundamentos</title>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rocketseat - React.js - Fundamentos</title>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+      // ================================================
+      // Eventos em React: gerenciamento de callbacks e props de evento
+      // ================================================
+      // 🎯 PORQUÊ Alert1 existe?
+      // - Demonstra um handler de evento direto como `onClick={handleAlertClick}`.
+      // - Isso expõe a importância de não recriar a função a cada render (evita re-renderização em componentes complexos).
+      // - Em elementos muito profundos, esse padrão ajuda a reduzir o risco de Props Drilling sem gerar falsos negativos de perfomance.
+      function Alert1() {
+        function handleAlertClick(event) {
+          // 🔍 PONTO CEGO - obj event é sintético (SyntheticEvent):
+          // - Em React, `event` é um wrapper leve e reutilizável pela pool.
+          // - Acessar event assíncrono (depois de setTimeout ou promises) pode falhar.
+          //   use event.persist() se precisar mantê-lo.
+          // - Iniciantes acham que isto é um DOM native event, mas é uma camada de abstração.
+          console.log(event);
 
-  <script type="text/babel">
-    function Alert1() {
-      function handleAlertClick(event) {
-        console.log(event)
-        alert('Uma mensagem de alerta!')
+          // 🎯 CONCEITO CHAVE: interação controlada por callback
+          // - O estado (aqui sem useState) não muda, mas o comportamento primeiro-*line* é definido por evento.
+          // - É uma operação idempotente — invoca o mesmo resultado para o mesmo input.
+          alert("Uma mensagem de alerta!");
+        }
+
+        return (
+          <button type="button" onClick={handleAlertClick}>
+            Mostrar alerta
+          </button>
+        );
       }
 
-      return (
-        <button type="button" onClick={handleAlertClick}>
-          Mostrar alerta
-        </button>
-      )
-    }
+      function Alert2() {
+        function handleAlertClick(msg) {
+          // 🔍 PONTO CEGO – passagem de parâmetros via arrow function:
+          // - Ao usar onClick={() => handleAlertClick('...')}, você cria uma nova função a cada render.
+          // - Para componentes pequenos é ok, mas em listas grandes pode prejudicar a Reconciliação se esse botão for filho de uma lista mapeada.
+          // - Alternativa robusta: use useCallback com dependências para manter identidade estável.
+          alert(msg);
+        }
 
-    function Alert2() {
-      function handleAlertClick(msg) {
-        alert(msg)
-      }
-
-      return (
-        <button type="button" onClick={() => handleAlertClick("Uma mensagem via param!")}>
-          Mostrar alerta c/ Parâmetro
-        </button>
-      )
-    }
-
-    function Alert3() {
-      function handleAlertClick(event) {
-        alert(event.target.previousSibling.value);
-      }
-
-      function handleInputChange(event) {
-        console.log(event.target.value)
-      }
-
-      return (
-        <div>
-          <input
-            type="text"
-            placeholder="Digite algo..."
-            onChange={handleInputChange}
-          />
-          <button onClick={handleAlertClick}>
+        return (
+          <button
+            type="button"
+            onClick={() => handleAlertClick("Uma mensagem via param!")}
+          >
             Mostrar alerta c/ Parâmetro
           </button>
-        </div>
-      )
-    }
+        );
+      }
 
-    function App() {
-      return (
-        <main>
-          <Alert1 />
-          <Alert2 />
-          <Alert3 />
-        </main>
-      )
-    }
+      function Alert3() {
+        function handleAlertClick(event) {
+          // 🔍 PONTO CEGO - DOM traversal via event.target.previousSibling:
+          // - Esse código depende da ordem exata do DOM e de trabalhar com referências diretas.
+          // - Em React, manipulação direta de DOM é contra-princípio.
+          // - Use useRef ou state para manter valor do input e evitar acoplamento frágil.
+          alert(event.target.previousSibling.value);
+        }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-  </script>
-</body>
+        function handleInputChange(event) {
+          // 🎯 PORQUÊ logar o valor no onChange?
+          // - Mostra como estado derivado pode ser rastreado em tempo real.
+          // - Mas este exemplo não usa useState; é só para evidenciar que eventos carregam dados do DOM.
+          console.log(event.target.value);
+        }
 
+        return (
+          <div>
+            <input
+              type="text"
+              placeholder="Digite algo..."
+              onChange={handleInputChange}
+            />
+            <button onClick={handleAlertClick}>
+              Mostrar alerta c/ Parâmetro
+            </button>
+          </div>
+        );
+      }
+
+      function App() {
+        // 🎯 PORQUÊ o App agrega esses três alertas?
+        // - Exibe padrões de eventos distintos: callback direto, callback com argumento, e dependência de DOM.
+        // - Ajuda a comparar práticas e entender efeitos de render e identidade de função.
+        // - Evita Props Drilling porque cada alerta é autocontido; App só compõe os filhos.
+        return (
+          <main>
+            <Alert1 />
+            <Alert2 />
+            <Alert3 />
+          </main>
+        );
+      }
+
+      // ⭐ CONCEITO CHAVE: Root + Virtual DOM
+      // - ReactDOM.createRoot cria o ponto de reconciliação; tudo abaixo passa pelo Virtual DOM.
+      // - A atualização de estado/evento no botão causa nova reconciliação para re-render dos componentes afetados.
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>

@@ -1,53 +1,104 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rocketseat - React.js - Fundamentos</title>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rocketseat - React.js - Fundamentos</title>
-</head>
+  <body>
+    <div id="root"></div>
 
-<body>
-  <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+      function ListNames() {
+        // [PORQUÊ] useState gerencia o array imutavelmente porque React precisa detectar mudanças
+        // e reexecutar Reconciliação. Mesmo que não modifiquemos names agora, padronizamos
+        // o dato vindo de estado para evitar acoplamento com dados globais.
+        // [CONCEITO] Imutabilidade: array é apenas lido aqui, não modificado.
+        // Props Drilling é evitado porque estado vive no componente que o utiliza.
+        const [names] = React.useState([
+          "Ana",
+          "Bruno",
+          "Carlos",
+          "Aline",
+          "Daniel",
+          "Eduardo",
+        ]);
 
-  <script type="text/babel">
-    function ListNames() {
-      const [names] = React.useState(["Ana", "Bruno", "Carlos", "Aline", "Daniel", "Eduardo"]);
-      const [search, setSearch] = React.useState("")
+        // [PORQUÊ] search é estado controlado porque cada keystroke do input deve:
+        // 1) Persistir em estado para renders futuros
+        // 2) Disparar novo render do filtro automaticamente
+        // [CONCEITO] Controlled component: value={search} + onChange garante data flow
+        // unidirecional (model -> state -> view). Sem isso, input seria "uncontrolled".
+        const [search, setSearch] = React.useState("");
 
-      return (
-        <ul>
-          <input
-            type="text"
-            placeholder="Buscar por nome..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          {names
-            .filter((name) =>
-              name.toLowerCase().includes(search.toLowerCase())
-            )
-            .map((name, index) => (
-              <li key={`${index}-${name}`}>{name}</li>
-            ))}
-        </ul>
-      )
-    }
+        return (
+          <ul>
+            <input
+              type="text"
+              placeholder="Buscar por nome..."
+              value={search}
+              // [PORQUÊ] onChange read e->target.value imediatamente porque é event synthetic.
+              // Se tentasse acessar e.target.value depois de setState (assincronamente),
+              // perderia a referência. React reutiliza objetos de evento por performance.
+              // [PONTO CEGO] Iniciantes pensam que event.target.value fica disponível assincronamente.
+              // Verdade: precisa ser lido NO callback, não depois.
+              // [CONCEITO] Event pooling: React recicla eventos, acesso diferido = null.
+              onChange={(e) => setSearch(e.target.value)}
+            />
 
-    function App() {
-      return (
-        <main>
-          <ListNames />
-        </main>
-      )
-    }
+            {/*
+              [PORQUÊ] filter() ANTES de map() reduz trabalho de Reconciliação.
+              Se renderizasse 6 <li> e escondesse via CSS, React ainda recria 6 virtual nodes.
+              Com filter(), React só renderiza o que passou (ex: 2 <li>), economizando diffing.
+              [CONCEITO] Imutabilidade: .filter() + .map() criar novos arrays, não mutam `names`.
+              [PONTO CEGO] Recomputa a cada render! Em listas GRANDES (1000+ items),
+              wrape em useMemo() para cachear o resultado enquanto search/names não mudarem.
+            */}
+            {names
+              .filter((name) =>
+                name.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((name, index) => (
+                // [PONTO CEGO] ANTI-PATTERN: key={`${index}-${name}`} é perigoso!
+                // Descrição errada: 'index é único'. Verdade: se lista reordena ou item
+                // é removido, index muda e React perde identidade do elemento.
+                // [PORQUÊ] Aqui funciona porque lista é estática (no mutations).
+                // Mas se houvesse add/remove, React falharia ao reutilizar <li> com estado.
+                // [CONCEITO] Reconciliação: key comunica 'que nó do DOM reutilizar'.
+                // Index = ID instável = Diffing incorreto em listas dinâmicas.
+                // Solução: use um id único (backend/uuid) em vez de index.
+                <li key={`${index}-${name}`}>{name}</li>
+              ))}
+          </ul>
+        );
+      }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-  </script>
-</body>
+      // [PORQUÊ] App apenas renderiza ListNames sem passar props porque estado vive
+      // onde é usado (ListNames). Se App passasse search/setSearch como props para ListNames,
+      // teríamos Props Drilling: passar props apenas para transferi-las adiante.
+      // [CONCEITO] Composição + Encapsulation: ListNames é black box. App não precisa
+      // conhecer detalhes internos (search, names). Desacoplamento = menos bugs.
+      function App() {
+        return (
+          <main>
+            <ListNames />
+          </main>
+        );
+      }
 
+      // [PORQUÊ] ReactDOM.createRoot(root).render() inicializa:
+      // 1) Raiz do Virtual DOM (React 18+, em vez de ReactDOM.render da v17)
+      // 2) Motor de Reconciliação que faz diffing e atualiza DOM real
+      // [CONCEITO] Fiber architecture: cada render() marca a raiz para React processar
+      // a árvore de componentes e aplicar atualizações em batches.
+      // [PONTO CEGO] Iniciantes não percebem seu impacto. Pensar em render() como
+      // 'reexecuta TUDO'. Verdade: React otimiza via keys, memoização, shouldComponentUpdate.
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>
