@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teste de Fogo: Custom Hook useFetch</title>
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      .product-item {
+        padding: 10px;
+        border-bottom: 1px solid #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+
+      // ============================================
+      // 1. CUSTOM HOOK: Encapsulamento de Lógica Assíncrona
+      // ============================================
+      // 🎯 PORQUÊ EXISTIR: Extrair a complexidade de requisições HTTP para um Hook reutilizável.
+      //    Permite que múltiplos componentes reutilizem a mesma lógica sem duplicação (DRY).
+      //    Isso é a essência da composição em React: separar Lógica de Estado da UI.
+      
+      function useFetch(url) {
+        // 🔍 PONTO CEGO - Falsa Segurança do useState com Array Vazio:
+        // Iniciantes costumam usar [] como valor inicial sem questionar POR QUÊ.
+        // ❌ RISK: Se você tentar .map() em data ANTES de setData ser executado,
+        //    o array vazio "funciona", mas mascara o real carregamento.
+        //    💡 CONCEITO: Esse é o padrão de "falso positivo" que causa bugs sutis.
+        const [data, setData] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        // 🔍 PONTO CEGO - O useEffect e suas Armadilhas:
+        // Este Effect tem dependência explícita [url].
+        // ❓ O QUE ACONTECE SEM [url]? 
+        //    - Effect rodaria apenas 1x (no mount), MESMO que URL mudasse
+        //    - Você buscaria dados da URL antiga quando o componente recebesse uma URL nova!
+        // ❓ O QUE ACONTECE COM [] dependency array VAZIO?
+        //    - Neste hook, SERIA UM BUG. Mas iniciantes esquecem de adicionar [url].
+        //    
+        // 💡 CLOSURE em Hooks: O useEffect "captura" a URL atual via closure JavaScript.
+        //    Quando [url] muda, React descarta o efeito anterior e roda um novo.
+        //    Sem a dependência correta, você fica com uma CLOSURE STALE (desatualizada).
+        useEffect(() => {
+          console.log(`Buscando dados da URL: ${url}`);
+          
+          // 🎯 PORQUÊ fetch() aqui e não axios? 
+          // fetch() é nativo, axios traz biblioteca extra.
+          // Ambos retornam Promise. Aqui usamos .then() (imperativo).
+          // 💡 CONCEITO: Esse padrão Promise-chaining é intermediário.
+          //    Com async/await, seria mais legível (mas requer try/catch).
+          
+          fetch(url)
+            .then((resposta) => resposta.json())
+            // 🔍 PONTO CEGO - Erro Silencioso:
+            // Se JSON parsing falhar, o catch não existe nesse código!
+            // Iniciantes não pensam em tratamento de erro e o app falha silenciosamente.
+            .then((dados) => {
+              // 🎯 PORQUÊ setData DEPOIS do parse?
+              // setData atualiza o estado de forma IMUTÁVEL.
+              // React não muda diretamente o array - cria uma NOVA REFERÊNCIA.
+              // 💡 CONCEITO: Imutabilidade permite React detectar mudanças
+              //    para Reconciliação eficiente da Virtual DOM.
+              
+              setData(dados);
+              
+              // 🎯 PORQUÊ setLoading(false) AQUI e não antes?
+              // Se setLoading(false) viesse antes de setData, teríamos uma Race Condition:
+              // O componente poderia renderizar "loading=false" com dados VAZIOS!
+              // 💡 FAIL SAMPLE: Setores iniciantes fazem setLoading=true|false
+              //    sem garantir ordem do estado.
+              
+              setLoading(false);
+            });
+          // 🔍 PONTO CEGO - Falta de Cleanup:
+          // Este Effect NÃO retorna uma função de limpeza (cleanup).
+          // Se o componente desmontar MID-REQUISIÇÃO, setData será chamado em um
+          // componente fantasma = memory leak e warning no console.
+          // 💡 CONCEITO: Cleanup é crítico com side effects assíncronos.
+          
+        }, [url]); // 💡 CONCEITO: dependency array = Dependency Injection para Effects.
+
+        // 🎯 PORQUÊ retornar um objeto {data, loading}?
+        // Permite destruturação elegante: const {data, loading} = useFetch(...).
+        // Se retornasse [data, loading], seria array destructuring: const [data, loading] = useFetch(...).
+        // Ambos funcionam. Objeto é mais semântico (labels nomeados).
+        
+        return { data, loading };
+      }
+
+      // ============================================
+      // 2. COMPONENTE: Interface Visual baseada em Estado
+      // ============================================
+      // 🎯 PORQUÊ ProductList é um componente separado?
+      // Separação de responsabilidades. ProductList é responsável APENAS pela UI.
+      // Toda lógica de requisição fica isolada no Hook (Separation of Concerns).
+      // Isso torna ProductList testável, reusável e mais legível.
+      
+      function ProductList() {
+        // 🔍 PONTO CEGO - Destruturação Renomeada (data → products):
+        // const {data: products, loading} usa renaming via ES6.
+        // ❓ POR QUE? Dentro do hook, "data" é genérico (poderia ser qualquer coisa).
+        //    Aqui no componente, renomeamos para "products" para SER CLARO.
+        //    Isso NÃO cria uma cópia - é apenas um alias no escopo local.
+        //    💡 CONCEITO: Aliasing é uma forma de aumentar legibilidade sem overhead.
+        
+        // Hook Customizado em ação. Este é um CALL ao Hook, não uma definição.
+        // 💡 CONCEITO: React trará aquele Estado compartilhado INDEPENDENTE de quantas
+        //    vezes ProductList renderiza (desde que seja instância no mesmo lugar).
+        
+        const { data: products, loading } = useFetch(
+          "https://fakestoreapi.com/products",
+        );
+
+        // 🎯 PORQUÊ condicional IF loading?
+        // Estado 3-fase: loading → dados vazios → dados carregados.
+        // Renderizar <ul> com array vazio não é bom UX (sem feedback).
+        // 💡 CONCEITO: Renderização condicional baseia-se em estado.
+        //    É parte da Lógica de Renderização (não apenas HTML gerado).
+        
+        if (loading) {
+          // 🔍 PONTO CEGO - Tempos de Carregamento Indefinidos:
+          // Este <h3> mostra enquanto loading=true.
+          // ❓ E se a API nunca responder? Seu app fica travado aqui para sempre!
+          //    Iniciantes não pensam em timeout ou erro handling.
+          //    💡 BETTER: Adicionar state para erro e timeout.
+          
+          return <h3>Carregando os produtos, aguarde...</h3>;
+        }
+
+        // 🎯 PORQUÊ .map() aqui?
+        // products é um array. React precisa de uma LISTA DE ELEMENTOS.
+        // .map() transforma cada objeto Python em um <li>.
+        // 💡 CONCEITO: React Elements são objetos descritivos criados pelo JSX.
+        //    Cada .map() call cria um novo React Element por item.
+        
+        return (
+          <div>
+            <h2>Catálogo de Produtos</h2>
+            <ul>
+              {products.map((product) => (
+                // 🔍 PONTO CEGO CRÍTICO - A Importância da Prop `key`:
+                // ❌ INICIALMENTE, iniciantes usam: key={index}
+                //    index é mutável! Se a lista reordenar, o index muda,
+                //    e React PERDE a rastreabilidade dos elementos.
+                //    
+                // ✅ CORRETO: key={product.id}
+                //    ID é imutável (produto A sempre tem ID 1).
+                //    
+                // 💡 CONCEITO: Key é essencial para Reconciliação eficiente.
+                //    Sem key correta, React faz re-render DESNECESSÁRIO ou aplica
+                //    estado ao item errado (React.diffing quebrado).
+                //    
+                // 🎯 PORQUÊ key é invisível para o componente?
+                // key é uma PROP RESERVADA do React (não passa para <li>).
+                // É usada internamente apenas para Reconciliação da Virtual DOM.
+                
+                <li key={product.id} className="product-item">
+                  {/* 🎯 PORQUÊ Interpolação de strings, não concatenação? */}
+                  {/* <strong>{product.title}</strong> - R$ {product.price} */}
+                  {/* JSX faz template literals automático com {}.                             */}
+                  {/* Isso é mais limpo que "string" + product.title + " - R$ " + product.price */}
+                  {/* 💡 CONCEITO: Template Literals em JSX melhoram readabilidade (menos noise). */}
+                  
+                  <strong>{product.title}</strong> - R$ {product.price}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+
+      // ============================================
+      // 3. RENDER: Montando a Árvore React no DOM
+      // ============================================
+      // 🎯 PORQUÊ ReactDOM.createRoot()?
+      // React 18+ mudou de ReactDOM.render() para createRoot().
+      // À vontade: createRoot() permite Concurrent Features (prioritização de updates).
+      // ReactDOM.render() era síncrono (bloqueava a thread TODO).
+      // 💡 CONCEITO: Root é o ponto de entrada da árvore React no DOM real.
+      //    Tudo que estiver dentro fica sob controle do React (Virtual DOM, state, etc).
+      
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      
+      // 🎯 PORQUÊ passar <ProductList /> e não ProductList?
+      // <ProductList /> é JSX (Syntactic Sugar para React.createElement()).
+      // ProductList (sem <>) é a função bruta.
+      // React precisa de um React Element (o resultado de JSX), não da função.
+      // 💡 CONCEITO: JSX é transpilado para React.createElement() pelo Babel.
+      //    <ProductList /> vira React.createElement(ProductList, null).
+      
+      root.render(<ProductList />);
+    </script>
+    </script>
+  </body>
+</html>
