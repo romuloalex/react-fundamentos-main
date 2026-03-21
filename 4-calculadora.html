@@ -268,6 +268,12 @@
         /*
         updateHistory: Função para adicionar uma nova operação ao histórico.
         Salva tanto na memória (estado) quanto no localStorage para persistência.
+        
+        [PORQUÊ] Callback em setHistory evita closure stale: prev sempre é o valor mais recente.
+        Sem callback, closure capturaria operation antiga se chamada em event handler.
+        [CONCEITO] Imutabilidade: [...prev, newItem] cria novo array, trigger Reconciliação.
+        [PONTO CEGO] Closures em event handlers: setHistory(operation) usaria operation do render,
+        não do clique. Callback garante frescor.
         */
 
         // Atualiza o histórico na memória e no localStorage.
@@ -341,6 +347,10 @@
         // Exemplo: "46".
         const [result, setResult] = React.useState("");
 
+        // [PORQUÊ] Estado para a expressão em construção, separado do resultado para permitir edição contínua.
+        // Evita que o resultado sobrescreva a operação antes de nova entrada.
+        const [operation, setOperation] = React.useState("");
+
         // Recupera a função para atualizar o histórico a partir do contexto.
         const { updateHistory } = React.useContext(CalculatorContext);
 
@@ -386,6 +396,10 @@
           "=": Calcula a expressão usando eval() (função JavaScript que executa código).
           Converte vírgulas para pontos (formato internacional), calcula, converte de volta.
           Salva no histórico.
+          
+          [PONTO CEGO] eval() executa código arbitrário - vulnerabilidade de segurança grave.
+          Iniciantes usam sem perceber que usuário malicioso pode injetar código via input.
+          Em produção, use bibliotecas seguras como mathjs para parsing matemático.
           */
           // "=": avalia a expressão e grava o resultado no histórico.
           // Este comando é processado imediatamente, sem concatenar nada.
@@ -413,6 +427,12 @@
           Se já temos um resultado (usuário pressionou =), o próximo input decide:
           - Número: começa nova operação com esse número.
           - Operador: continua usando o resultado atual + operador.
+          
+          [PORQUÊ] Após cálculo, permite chaining: resultado + operador continua operação.
+          Sem isso, cada = resetaria tudo, forçando redigitar.
+          [CONCEITO] Estado transitório: result sinaliza "modo pós-cálculo" para lógica condicional.
+          [PONTO CEGO] Estado booleano implícito: result vazio/filled determina comportamento.
+          Iniciantes não percebem que estado pode representar "modo" além de dados.
           */
           // Se `result` não estiver vazio, significa que o usuário acabou de
           // pressionar "=" e viu um resultado. Neste caso, temos duas opções:
@@ -432,6 +452,12 @@
 
           /*
           "," (vírgula): Só permite uma vírgula consecutiva para evitar "1,,2".
+          
+          [PORQUÊ] Validação de input impede expressões inválidas que quebrariam eval().
+          Sem isso, usuário digitaria "1,," causando SyntaxError.
+          [CONCEITO] Sanitização de entrada: previne erros downstream na pipeline.
+          [PONTO CEGO] Input validation: iniciantes focam em "funcionar", esquecem casos edge.
+          Aqui, endsWith(",") previne duplicatas, mas não impede "1,2,3" (válido em alguns contextos).
           */
           // Permite apenas uma vírgula consecutiva (não deixa o usuário digitar "1,,2").
           if (input === "," && !operation.endsWith(",")) {
