@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minhas Tarefas</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- React + Babel (permite usar JSX direto no browser) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #080808;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- React vai renderizar aqui -->
+    <div id="root"></div>
+
+    <!-- type="text/babel" faz o Babel compilar o JSX no browser -->
+    <script type="text/babel">
+      const { useState } = React;
+
+      const FILTERS = ["Todas", "Pendentes", "Concluídas"];
+
+      const CATEGORIES = [
+        { label: "Trabalho", color: "#FF6B6B" },
+        { label: "Pessoal", color: "#4ECDC4" },
+        { label: "Estudos", color: "#FFE66D" },
+      ];
+
+      /**
+       * Componente Badge para exibir categoria da tarefa com cor distintiva.
+       *
+       * Fluxo de Dados: Recebe 'category' via props; encontra cor correspondente em CATEGORIES.
+       * Re-renderiza apenas se props mudarem. Estilo inline para isolamento visual.
+       *
+       * Lógica de Negócio: Mapeia categoria textual para representação visual colorida.
+       */
+      function Badge({ category }) {
+        const cat = CATEGORIES.find((c) => c.label === category);
+        return (
+          <span
+            style={{
+              background: cat?.color + "33",
+              color: cat?.color,
+              border: `1px solid ${cat?.color}55`,
+              borderRadius: "6px",
+              padding: "2px 8px",
+              fontSize: "11px",
+              fontFamily: "monospace",
+              fontWeight: 700,
+              letterSpacing: "0.05em",
+            }}
+          >
+            {category}
+          </span>
+        );
+      }
+
+      /**
+       * Componente para renderizar item individual da lista de tarefas.
+       *
+       * Fluxo de Dados: Recebe 'tarefa' (objeto imutável) e callbacks 'onToggle', 'onRemover' via props.
+       * Re-renderiza quando props mudam. Callbacks propagam mudanças para componente pai.
+       *
+       * Lógica de Negócio: Exibe tarefa com controles interativos (toggle conclusão, remoção).
+       * Estilo condicional reflete estado (concluída vs pendente) para feedback visual imediato.
+       */
+      function TarefaItem({ tarefa, onToggle, onRemover }) {
+        return (
+          <li
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "14px 16px",
+              background: tarefa.concluida ? "#0d0d0d" : "#141414",
+              borderRadius: "10px",
+              border: `1px solid ${tarefa.concluida ? "#2a2a2a" : "#242424"}`,
+              opacity: tarefa.concluida ? 0.6 : 1,
+              transition: "all 0.2s",
+            }}
+          >
+            <button
+              onClick={() => onToggle(tarefa.id)}
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: "6px",
+                border: `2px solid ${tarefa.concluida ? "#4ECDC4" : "#444"}`,
+                background: tarefa.concluida ? "#4ECDC4" : "transparent",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "all 0.2s",
+              }}
+            >
+              {tarefa.concluida && (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M2 6l3 3 5-5"
+                    stroke="#000"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+
+            <span
+              style={{
+                flex: 1,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "14px",
+                color: tarefa.concluida ? "#555" : "#e0e0e0",
+                textDecoration: tarefa.concluida ? "line-through" : "none",
+                transition: "all 0.2s",
+              }}
+            >
+              {tarefa.texto}
+            </span>
+
+            <Badge category={tarefa.categoria} />
+
+            <button
+              onClick={() => onRemover(tarefa.id)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#444",
+                cursor: "pointer",
+                fontSize: "18px",
+                lineHeight: 1,
+                padding: "0 4px",
+                transition: "color 0.2s",
+              }}
+              onMouseEnter={(e) => (e.target.style.color = "#FF6B6B")}
+              onMouseLeave={(e) => (e.target.style.color = "#444")}
+            >
+              ×
+            </button>
+          </li>
+        );
+      }
+
+      /**
+       * Componente formulário para adicionar novas tarefas.
+       *
+       * Fluxo de Dados: Estado local 'texto' e 'categoria' gerenciam inputs; 'onAdicionar' propaga
+       * nova tarefa para pai. Re-renderiza em mudanças de estado local ou props.
+       *
+       * Lógica de Negócio: Valida entrada (não vazia) antes de submeter; reseta campo após adição
+       * para UX fluida. Suporte a teclado (Enter) acelera interação.
+       *
+       * Trade-offs: Estado local evita re-renders desnecessários do pai; validação simples prioriza
+       * usabilidade sobre robustez extrema.
+       */
+      function FormularioTarefa({ onAdicionar }) {
+        /**
+         * Estado do texto da nova tarefa.
+         * Por que useState: controla input controlado para validação e reset.
+         */
+        const [texto, setTexto] = useState("");
+
+        /**
+         * Estado da categoria selecionada.
+         * Por que useState: sincroniza select com valor atual.
+         */
+        const [categoria, setCategoria] = useState("Pessoal");
+
+        /**
+         * Submete nova tarefa se texto não estiver vazio.
+         *
+         * Lógica de Negócio: Cria tarefa via callback do pai; limpa input para próxima entrada.
+         */
+        function handleSubmit() {
+          if (!texto.trim()) return;
+          onAdicionar(texto.trim(), categoria);
+          setTexto("");
+        }
+
+        return (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <input
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              placeholder="Nova tarefa..."
+              style={{
+                flex: 1,
+                minWidth: "160px",
+                padding: "12px 16px",
+                borderRadius: "10px",
+                border: "1px solid #2a2a2a",
+                background: "#0d0d0d",
+                color: "#e0e0e0",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "14px",
+                outline: "none",
+              }}
+            />
+            <select
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: "10px",
+                border: "1px solid #2a2a2a",
+                background: "#0d0d0d",
+                color: "#aaa",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "13px",
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.label}>{c.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleSubmit}
+              style={{
+                padding: "12px 20px",
+                borderRadius: "10px",
+                border: "none",
+                background: "#4ECDC4",
+                color: "#000",
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 700,
+                fontSize: "14px",
+                cursor: "pointer",
+                letterSpacing: "0.03em",
+                transition: "opacity 0.2s",
+              }}
+              onMouseEnter={(e) => (e.target.style.opacity = 0.85)}
+              onMouseLeave={(e) => (e.target.style.opacity = 1)}
+            >
+              + Adicionar
+            </button>
+          </div>
+        );
+      }
+
+      /**
+       * Componente principal da aplicação Todo.
+       *
+       * Fluxo de Dados: O estado 'tarefas' armazena a lista de tarefas como array imutável; mudanças via setTarefas
+       * disparam re-renderização completa do componente. 'filtro' controla a exibição filtrada, causando re-render
+       * apenas quando alterado. Re-renderizações ocorrem em mudanças de estado para refletir UI atualizada.
+       *
+       * Lógica de Negócio: Gerencia ciclo de vida das tarefas (criação, toggle conclusão, remoção) com estatísticas
+       * de progresso. Filtragem dinâmica permite visualização segmentada sem alterar dados subjacentes.
+       *
+       * Trade-offs: Computações (filtragem, contadores) executam a cada render para simplicidade; em apps maiores,
+       * useMemo otimizaria performance evitando recálculos desnecessários.
+       */
+      function App() {
+        /**
+         * Estado das tarefas: array de objetos imutáveis para evitar mutações diretas.
+         * Por que useState: gerencia lista dinâmica de tarefas; mudanças disparam re-render para atualizar UI.
+         */
+        const [tarefas, setTarefas] = useState([
+          {
+            id: 1,
+            texto: "Aprender useState e props",
+            categoria: "Estudos",
+            concluida: true,
+          },
+          {
+            id: 2,
+            texto: "Criar projeto prático em React",
+            categoria: "Pessoal",
+            concluida: false,
+          },
+          {
+            id: 3,
+            texto: "Fazer revisão de código",
+            categoria: "Trabalho",
+            concluida: false,
+          },
+          {
+            id: 4,
+            texto: "Criar projeto Teste em React",
+            categoria: "Pessoal",
+            concluida: false,
+          },
+        ]);
+
+        /**
+         * Estado do filtro: string controlando visualização ("Todas", "Pendentes", "Concluídas").
+         * Por que useState: permite alternância dinâmica de filtros; re-render atualiza lista filtrada.
+         */
+        const [filtro, setFiltro] = useState("Todas");
+
+        /**
+         * Adiciona nova tarefa à lista.
+         *
+         * Lógica de Negócio: Cria tarefa com ID único (timestamp) e estado inicial não-concluída.
+         * Por que spread: preserva imutabilidade do array, evitando mutações que quebrariam reatividade.
+         */
+        function adicionarTarefa(texto, categoria) {
+          setTarefas([
+            ...tarefas,
+            { id: Date.now(), texto, categoria, concluida: false },
+          ]);
+        }
+
+        /**
+         * Alterna estado de conclusão de uma tarefa específica.
+         *
+         * Lógica de Negócio: Inverte flag 'concluida' para tarefa identificada por ID.
+         * Por que map: cria novo array com tarefa alterada, mantendo imutabilidade para reatividade correta.
+         */
+        function toggleTarefa(id) {
+          setTarefas(
+            tarefas.map((t) =>
+              t.id === id ? { ...t, concluida: !t.concluida } : t,
+            ),
+          );
+        }
+
+        /**
+         * Remove tarefa da lista por ID.
+         *
+         * Lógica de Negócio: Filtra array removendo tarefa específica.
+         * Por que filter: gera novo array sem mutar original, assegurando re-render consistente.
+         */
+        function removerTarefa(id) {
+          setTarefas(tarefas.filter((t) => t.id !== id));
+        }
+
+        /**
+         * Lista filtrada de tarefas baseada no estado 'filtro'.
+         *
+         * Lógica de Negócio: Aplica filtro condicional para exibir apenas tarefas relevantes.
+         * Por que computed: re-executa a cada render para refletir mudanças em 'tarefas' ou 'filtro'.
+         */
+        const tarefasFiltradas = tarefas.filter((t) => {
+          if (filtro === "Pendentes") return !t.concluida;
+          if (filtro === "Concluídas") return t.concluida;
+          return true;
+        });
+
+        /**
+         * Estatísticas calculadas: total de tarefas, concluídas e porcentagem de progresso.
+         *
+         * Lógica de Negócio: Fornece métricas para feedback visual do usuário.
+         * Por que computed: dependem diretamente de 'tarefas', recalculadas em cada render.
+         */
+        const total = tarefas.length;
+        const concluidas = tarefas.filter((t) => t.concluida).length;
+        const progresso =
+          total === 0 ? 0 : Math.round((concluidas / total) * 100);
+
+        return (
+          <div
+            style={{
+              minHeight: "100vh",
+              background: "#080808",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "32px 16px",
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            <div style={{ width: "100%", maxWidth: "520px" }}>
+              <div style={{ marginBottom: "28px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "10px",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: "26px",
+                      color: "#fff",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Minhas Tarefas
+                  </h1>
+                  <span
+                    style={{
+                      fontFamily: "DM Mono",
+                      fontSize: "12px",
+                      color: "#4ECDC4",
+                    }}
+                  >
+                    {concluidas}/{total}
+                  </span>
+                </div>
+                <p style={{ margin: 0, color: "#555", fontSize: "13px" }}>
+                  {progresso === 100 && total > 0
+                    ? "🎉 Tudo feito!"
+                    : `${progresso}% concluído`}
+                </p>
+                <div
+                  style={{
+                    marginTop: "12px",
+                    height: "4px",
+                    background: "#1e1e1e",
+                    borderRadius: "99px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${progresso}%`,
+                      background: "linear-gradient(90deg, #4ECDC4, #FFE66D)",
+                      borderRadius: "99px",
+                      transition: "width 0.4s ease",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "20px" }}>
+                <FormularioTarefa onAdicionar={adicionarTarefa} />
+              </div>
+
+              <div
+                style={{ display: "flex", gap: "6px", marginBottom: "16px" }}
+              >
+                {FILTERS.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFiltro(f)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "8px",
+                      border: `1px solid ${filtro === f ? "#4ECDC4" : "#222"}`,
+                      background: filtro === f ? "#4ECDC433" : "transparent",
+                      color: filtro === f ? "#4ECDC4" : "#555",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+
+              <ul
+                style={{
+                  listStyle: "none",
+                  margin: 0,
+                  padding: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                {tarefasFiltradas.length === 0 && (
+                  <li
+                    style={{
+                      textAlign: "center",
+                      color: "#333",
+                      padding: "40px 0",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Nenhuma tarefa aqui.
+                  </li>
+                )}
+                {tarefasFiltradas.map((tarefa) => (
+                  <TarefaItem
+                    key={tarefa.id}
+                    tarefa={tarefa}
+                    onToggle={toggleTarefa}
+                    onRemover={removerTarefa}
+                  />
+                ))}
+              </ul>
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  padding: "14px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid #1a1a1a",
+                  background: "#0d0d0d",
+                }}
+              >
+                <p
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: "11px",
+                    color: "#333",
+                    fontFamily: "DM Mono",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  CONCEITOS USADOS NESTE PROJETO
+                </p>
+                {[
+                  [
+                    "useState",
+                    "tarefas, filtro (App) · texto, categoria (Formulário)",
+                  ],
+                  ["props (dados)", "tarefa → TarefaItem"],
+                  ["props (funções)", "onAdicionar, onToggle, onRemover"],
+                  ["map / filter", "renderizar e filtrar a lista"],
+                  ["spread ...", "atualizar objetos sem mutar o state"],
+                ].map(([conceito, desc]) => (
+                  <div
+                    key={conceito}
+                    style={{ display: "flex", gap: "8px", marginBottom: "4px" }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "DM Mono",
+                        fontSize: "11px",
+                        color: "#4ECDC4",
+                        minWidth: "90px",
+                      }}
+                    >
+                      {conceito}
+                    </span>
+                    <span style={{ fontSize: "11px", color: "#444" }}>
+                      {desc}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

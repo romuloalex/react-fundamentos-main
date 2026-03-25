@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat — React</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet" />
+
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #f0ece4;
+      font-family: 'Instrument Sans', sans-serif;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Animação de entrada das bolhas */
+    @keyframes popIn {
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .bubble { animation: popIn 0.2s ease forwards; }
+
+    /* Animação dos 3 pontinhos de "digitando" */
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40%           { transform: translateY(-5px); }
+    }
+    .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #999; margin: 0 2px; }
+    .dot:nth-child(1) { animation: bounce 1.2s infinite 0.0s; }
+    .dot:nth-child(2) { animation: bounce 1.2s infinite 0.2s; }
+    .dot:nth-child(3) { animation: bounce 1.2s infinite 0.4s; }
+
+    /* Scrollbar discreta */
+    .msg-list::-webkit-scrollbar { width: 4px; }
+    .msg-list::-webkit-scrollbar-track { background: transparent; }
+    .msg-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 99px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ─── Respostas automáticas do "bot" ────────────────────────────
+    // O bot escolhe uma resposta com base em palavras-chave na mensagem
+    const RESPOSTAS = [
+      { palavras: ["oi", "olá", "ola", "hey", "hello"],  resposta: "Oi! Tudo bem com você? 😊" },
+      { palavras: ["tudo", "bem", "beleza", "ótimo"],     resposta: "Que ótimo! Aqui também está tudo bem." },
+      { palavras: ["react", "jsx", "componente"],         resposta: "React é incrível! Você está aprendendo rápido 🚀" },
+      { palavras: ["props"],                              resposta: "Props são a forma de passar dados entre componentes. Entendeu bem!" },
+      { palavras: ["state", "estado", "usestate"],        resposta: "useState é um dos hooks mais usados em React. Boa escolha estudar isso!" },
+      { palavras: ["obrigado", "obrigada", "valeu"],      resposta: "De nada! Sempre à disposição 😄" },
+      { palavras: ["tchau", "até", "flw", "adeus"],       resposta: "Até mais! Foi ótimo conversar 👋" },
+    ];
+
+    function gerarResposta(texto) {
+      const lower = texto.toLowerCase();
+      const match = RESPOSTAS.find(({ palavras }) =>
+        palavras.some((p) => lower.includes(p))
+      );
+      // Condicional: encontrou match? Usa a resposta. Senão, usa resposta genérica.
+      return match
+        ? match.resposta
+        : "Interessante! Me conta mais sobre isso...";
+    }
+
+    // ─── Componente: bolha de uma mensagem ────────────────────────
+    // Recebe `msg` como prop e usa condicional para alinhar à esquerda ou direita
+    function Bolha({ msg }) {
+      const ehUsuario = msg.autor === "usuario";
+
+      return (
+        // CONDICIONAL: alinhamento muda baseado em quem enviou
+        <div className="bubble" style={{
+          display: "flex",
+          flexDirection: "column",
+          // Se é o usuário, alinha à direita; se é o bot, à esquerda
+          alignItems: ehUsuario ? "flex-end" : "flex-start",
+          marginBottom: "4px",
+        }}>
+
+          {/* CONDICIONAL: nome do autor — só mostra para o bot */}
+          {!ehUsuario && (
+            <span style={{
+              fontSize: "11px",
+              fontFamily: "Syne, sans-serif",
+              fontWeight: 600,
+              color: "#a0855b",
+              marginBottom: "4px",
+              marginLeft: "12px",
+              letterSpacing: "0.05em",
+            }}>
+              BOT
+            </span>
+          )}
+
+          <div style={{
+            maxWidth: "72%",
+            padding: "10px 15px",
+            borderRadius: ehUsuario ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+            // Cor de fundo diferente para cada lado
+            background: ehUsuario ? "#1a1a1a" : "#fff",
+            color: ehUsuario ? "#f0ece4" : "#1a1a1a",
+            fontSize: "14px",
+            lineHeight: 1.5,
+            boxShadow: ehUsuario
+              ? "0 2px 8px rgba(0,0,0,0.15)"
+              : "0 2px 8px rgba(0,0,0,0.07)",
+          }}>
+            {msg.texto}
+          </div>
+
+          {/* Horário da mensagem */}
+          <span style={{ fontSize: "10px", color: "#bbb", margin: "3px 12px 0" }}>
+            {msg.hora}
+          </span>
+        </div>
+      );
+    }
+
+    // ─── Componente: indicador "digitando..." ─────────────────────
+    // Só aparece enquanto o bot está "processando" — exemplo de condicional
+    function Digitando() {
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 0 8px" }}>
+          <div style={{
+            background: "#fff",
+            borderRadius: "18px 18px 18px 4px",
+            padding: "10px 14px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.07)",
+          }}>
+            <span className="dot" />
+            <span className="dot" />
+            <span className="dot" />
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Componente: estado vazio ─────────────────────────────────
+    // Renderizado condicionalmente quando não há mensagens ainda
+    function Vazio() {
+      return (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+          <span style={{ fontSize: "36px" }}>💬</span>
+          <p style={{ color: "#bbb", fontSize: "13px", fontFamily: "Syne", letterSpacing: "0.05em" }}>
+            NENHUMA MENSAGEM AINDA
+          </p>
+          <p style={{ color: "#ccc", fontSize: "12px" }}>Diga "oi" para começar</p>
+        </div>
+      );
+    }
+
+    // ─── Componente pai: App ───────────────────────────────────────
+    function App() {
+      const [mensagens, setMensagens] = useState([]);
+      const [input, setInput] = useState("");
+      const [digitando, setDigitando] = useState(false); // estado do "bot digitando"
+      const listaRef = useRef(null); // para fazer scroll automático
+
+      // Sempre que mensagens mudam, rola a lista para o final
+      useEffect(() => {
+        if (listaRef.current) {
+          listaRef.current.scrollTop = listaRef.current.scrollHeight;
+        }
+      }, [mensagens, digitando]);
+
+      function agora() {
+        return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      }
+
+      function enviar() {
+        if (!input.trim()) return;
+
+        // 1. Adiciona mensagem do usuário
+        const msgUsuario = { id: Date.now(), autor: "usuario", texto: input.trim(), hora: agora() };
+        setMensagens((prev) => [...prev, msgUsuario]);
+        const textoEnviado = input.trim();
+        setInput("");
+
+        // 2. Simula bot "digitando" por 1 segundo antes de responder
+        setDigitando(true);
+        setTimeout(() => {
+          const msgBot = {
+            id: Date.now() + 1,
+            autor: "bot",
+            texto: gerarResposta(textoEnviado),
+            hora: agora(),
+          };
+          // Spread para não mutar o array anterior — conceito do useState!
+          setMensagens((prev) => [...prev, msgBot]);
+          setDigitando(false);
+        }, 1000);
+      }
+
+      return (
+        <div style={{
+          width: "100%", maxWidth: "400px",
+          height: "90vh", maxHeight: "700px",
+          display: "flex", flexDirection: "column",
+          background: "#f7f4ef",
+          borderRadius: "24px",
+          overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+        }}>
+
+          {/* Header */}
+          <div style={{
+            padding: "20px 24px 16px",
+            background: "#1a1a1a",
+            display: "flex", alignItems: "center", gap: "12px",
+          }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: "50%",
+              background: "linear-gradient(135deg, #d4a857, #a0855b)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "18px",
+            }}>🤖</div>
+            <div>
+              <p style={{ fontFamily: "Syne", fontWeight: 700, color: "#f0ece4", fontSize: "15px" }}>
+                Bot React
+              </p>
+              {/* CONDICIONAL inline: status muda se está digitando */}
+              <p style={{ fontSize: "11px", color: digitando ? "#d4a857" : "#666", transition: "color 0.3s" }}>
+                {digitando ? "digitando..." : "online"}
+              </p>
+            </div>
+            {/* Contador de mensagens — CONDICIONAL: só aparece se há mensagens */}
+            {mensagens.length > 0 && (
+              <span style={{
+                marginLeft: "auto",
+                background: "#d4a857",
+                color: "#1a1a1a",
+                fontFamily: "Syne",
+                fontWeight: 700,
+                fontSize: "11px",
+                padding: "3px 9px",
+                borderRadius: "99px",
+              }}>
+                {mensagens.length} msg{mensagens.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {/* Lista de mensagens */}
+          <div
+            ref={listaRef}
+            className="msg-list"
+            style={{
+              flex: 1, overflowY: "auto",
+              padding: "16px",
+              display: "flex", flexDirection: "column",
+            }}
+          >
+            {/* CONDICIONAL: lista vazia ou mensagens? */}
+            {mensagens.length === 0
+              ? <Vazio />
+              : mensagens.map((msg) => (
+                  // LISTA: cada mensagem vira um componente <Bolha>
+                  // key única para o React rastrear os itens
+                  <Bolha key={msg.id} msg={msg} />
+                ))
+            }
+
+            {/* CONDICIONAL: mostra "digitando" só enquanto bot processa */}
+            {digitando && <Digitando />}
+          </div>
+
+          {/* Sugestões rápidas — só aparecem se não há mensagens ainda */}
+          {mensagens.length === 0 && (
+            <div style={{ padding: "0 16px 8px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {["Oi!", "Falar sobre React", "Valeu!"].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => { setInput(s); }}
+                  style={{
+                    padding: "5px 12px", borderRadius: "99px",
+                    border: "1px solid #d4a857",
+                    background: "transparent", color: "#a0855b",
+                    fontFamily: "Instrument Sans", fontSize: "12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input de envio */}
+          <div style={{
+            padding: "12px 16px",
+            borderTop: "1px solid #e8e3da",
+            display: "flex", gap: "8px",
+            background: "#f0ece4",
+          }}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !digitando && enviar()}
+              placeholder="Digite uma mensagem..."
+              disabled={digitando}
+              style={{
+                flex: 1, padding: "10px 16px",
+                borderRadius: "99px",
+                border: "1px solid #ddd",
+                background: "#fff",
+                fontFamily: "Instrument Sans", fontSize: "13px",
+                outline: "none", color: "#1a1a1a",
+                opacity: digitando ? 0.6 : 1,
+              }}
+            />
+            <button
+              onClick={enviar}
+              disabled={digitando || !input.trim()}
+              style={{
+                width: 40, height: 40, borderRadius: "50%",
+                border: "none",
+                background: input.trim() && !digitando ? "#1a1a1a" : "#ddd",
+                color: "#f0ece4",
+                fontSize: "16px", cursor: "pointer",
+                transition: "background 0.2s",
+                flexShrink: 0,
+              }}
+            >
+              ↑
+            </button>
+          </div>
+
+          {/* Legenda dos conceitos */}
+          <div style={{
+            padding: "10px 16px",
+            background: "#1a1a1a",
+            display: "flex", flexWrap: "wrap", gap: "8px",
+          }}>
+            {[
+              ["map()", "lista de bolhas"],
+              ["&&", "Digitando / Vazio / Contador"],
+              ["ternário", "alinhamento / cor / status"],
+            ].map(([conceito, desc]) => (
+              <div key={conceito} style={{ display: "flex", gap: "5px", alignItems: "baseline" }}>
+                <code style={{ fontSize: "10px", color: "#d4a857", fontFamily: "monospace" }}>{conceito}</code>
+                <span style={{ fontSize: "10px", color: "#555" }}>{desc}</span>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
