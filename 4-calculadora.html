@@ -174,6 +174,7 @@
        * - Persiste histórico em `localStorage` na chave `history`.
        * - `updateHistory(operation, parsedResult)` adiciona um item e persiste.
        */
+
       function CalculatorProvider({ children }) {
         const [history, setHistory] = React.useState([]);
         const historyStorageKey = "history";
