@@ -46,6 +46,14 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
+      /**
+       * Calculadora (single-file) — componente React escrito para aprendizado.
+       * - Executado no navegador através do Babel standalone (dev only).
+       * - Observação de segurança: usa `eval()` para avaliar expressões. NÃO usar em produção.
+       * - Responsabilidade: UI, lógica de operação e persistência simples (localStorage).
+       */
+
+      /** Mapa de variantes tipográficas reutilizáveis. */
       const textVariants = {
         default: "text-xl",
         muted: "text-xl text-(--text-secondary)",
@@ -53,6 +61,14 @@
         blast: "text-3xl",
       };
 
+      /**
+       * `Text` — wrapper para renderizar diferentes tags com estilo consistente.
+       * Props:
+       * - `as` (string): tag HTML a ser renderizada, ex: 'span', 'div', 'button'.
+       * - `variant` (string): chave em `textVariants`.
+       * - `className` (string): classes extras do Tailwind.
+       * Retorna um elemento criado via `React.createElement` para suportar `as` dinâmico.
+       */
       function Text({
         as = "span",
         variant = "default",
@@ -70,11 +86,17 @@
         );
       }
 
+      /** Variedades de estilo para botões (apenas classes). */
       const buttonVariants = {
         default: "bg-(--background)",
         primary: "bg-(--primary)",
       };
 
+      /**
+       * `Button` — componente de controle clicável.
+       * Constrói um botão usando `Text` para manter tipografia consistente.
+       * Aceita `variant` para alterar cor e `className` para ajustes de layout.
+       */
       function Button({ variant = "default", className, children, ...props }) {
         return (
           <Text
@@ -95,6 +117,10 @@
         );
       }
 
+      /**
+       * `Card` — container visual para agrupar conteúdo com sombra e borda arredondada.
+       * Mantém estilo consistente para seções da UI.
+       */
       function Card({ children, className, ...props }) {
         return (
           <div
@@ -140,8 +166,14 @@
         ],
       ];
 
+      /** Contexto para histórico de operações. */
       const CalculatorContext = React.createContext();
 
+      /**
+       * `CalculatorProvider` — provê o histórico via Context.
+       * - Persiste histórico em `localStorage` na chave `history`.
+       * - `updateHistory(operation, parsedResult)` adiciona um item e persiste.
+       */
       function CalculatorProvider({ children }) {
         const [history, setHistory] = React.useState([]);
         const historyStorageKey = "history";
@@ -157,6 +189,7 @@
           });
         }
 
+        // Carrega histórico existente ao montar (efeito único).
         React.useEffect(() => {
           const savedHistory = localStorage.getItem(
             historyStorageKey,
@@ -172,24 +205,37 @@
         );
       }
 
+      /**
+       * `useCalculator` — hook que encapsula estado e comportamento da calculadora.
+       * Retorna: { operation, result, doOperation }
+       * - `operation` (string): expressão em construção, ex: "12+3"
+       * - `result` (string): último resultado exibido (formato com vírgula)
+       * - `doOperation(input)` processa a entrada do usuário (botões)
+       *
+       * Observações:
+       * - `eval()` é usado para simplificar a avaliação. Em produção, substitua por parser matemático seguro.
+       */
       function useCalculator() {
         const [result, setResult] = React.useState("");
         const [operation, setOperation] = React.useState("");
         const { updateHistory } = React.useContext(CalculatorContext);
 
         function doOperation(input) {
+          // Reset completo
           if (input === "C") {
             setOperation("");
             setResult("");
             return;
           }
 
+          // Backspace (remove último caractere)
           if (input === "CE") {
             setResult("");
             setOperation(operation.slice(0, -1));
             return;
           }
 
+          // Calcular: converte vírgula->ponto, avalia, formata de volta
           if (input === "=") {
             const operationResult = eval(operation.replace(/,/g, "."));
             const parsedResult = operationResult
@@ -200,34 +246,34 @@
             return;
           }
 
+          // Se existe resultado visível, próximo input decide iniciar nova operação ou continuar
           if (result) {
             setOperation(isNaN(input) ? `${result}${input}` : input);
             setResult("");
             return;
           }
 
+          // Evita vírgulas duplicadas consecutivas
           if (input === "," && !operation.endsWith(",")) {
             setOperation(`${operation},`);
             return;
           }
 
+          // Caso geral: concatena o input
           setOperation(`${operation}${input}`);
         }
 
-        return {
-          operation,
-          result,
-          doOperation,
-        };
+        return { operation, result, doOperation };
       }
 
+      /**
+       * Display da calculadora: mostra expressão e resultado.
+       * - Exibe a operação anterior quando há resultado (contexto pós-cálculo).
+       */
       function CalculatorDisplay({ operation, result }) {
         return (
           <div
-            className={`
-              flex flex-col gap-2 px-[1.375rem]
-              cursor-default select-none
-            `}
+            className={`flex flex-col gap-2 px-[1.375rem] cursor-default select-none`}
           >
             <Text
               as="div"
@@ -244,6 +290,9 @@
         );
       }
 
+      /**
+       * Componente principal da calculadora: monta `CalculatorDisplay` + grade de botões.
+       */
       function Calculator() {
         const { operation, result, doOperation } = useCalculator();
 
@@ -253,10 +302,7 @@
 
         return (
           <Card
-            className={`
-          flex flex-col gap-[1.625rem] w-[22.25rem]
-          pt-14 px-8 pb-8
-          `}
+            className={`flex flex-col gap-[1.625rem] w-[22.25rem] pt-14 px-8 pb-8`}
           >
             <CalculatorDisplay operation={operation} result={result} />
 
@@ -280,6 +326,10 @@
         );
       }
 
+      /**
+       * Exibe o histórico de operações salvas no contexto.
+       * Renderiza uma lista simples ou uma mensagem quando vazio.
+       */
       function OperationHistory() {
         const { history } = React.useContext(CalculatorContext);
 
@@ -306,15 +356,11 @@
         );
       }
 
+      /** App root: provê o contexto e organiza layout principal. */
       function App() {
         return (
           <main
-            className={`
-          py-28 px-4 sm:px-10
-          flex flex-col sm:flex-row
-          items-center sm:items-stretch
-          gap-2
-          `}
+            className={`py-28 px-4 sm:px-10 flex flex-col sm:flex-row items-center sm:items-stretch gap-2`}
           >
             <CalculatorProvider>
               <Calculator />
