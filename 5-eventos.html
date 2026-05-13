@@ -45,32 +45,14 @@
   <body>
     <div id="root"></div>
 
-    <!-- Bibliotecas do React e Babel -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
-      /**
-       * Extração de `useState` do objeto React para uso local.
-       * Por que: facilita leituras posteriores e evita repetir `React.useState`.
-       * Nota: alternativa equivalente é usar `React.useState` inline.
-       */
       const { useState } = React;
 
-      // ================================================
-      // Alert 1: Handler de evento padrão passado por referência
-      // ================================================
-      /**
-       * Componente `Alert1` — Exemplo mínimo de handler externo.
-       * Por que: demonstrar a abordagem recomendada quando o handler
-       * não precisa receber parâmetros — a função é passada por referência
-       * ao JSX para evitar re-criações em cada render (micro-otimização
-       * relevante em componentes maiores).
-       */
       function Alert1() {
-        // O handler é mantido fora do JSX para manter o render limpo
-        // e facilitar testes unitários (podemos chamá-lo diretamente).
         function handleAlertClick() {
           alert("Ação simples executada com sucesso!");
         }
@@ -85,17 +67,6 @@
         );
       }
 
-      // ================================================
-      // Alert 2: Passagem de parâmetros em eventos
-      // ================================================
-      /**
-       * Componente `Alert2` — demonstra passagem de parâmetros em handlers.
-       * Por que: quando precisamos enviar argumentos ao handler, usamos
-       * uma arrow function inline ou `Function.prototype.bind`.
-       * Trade-off: arrow inline cria uma nova função a cada render, o que
-       * pode ser aceitável para elementos simples, mas deve ser avaliado
-       * em listas grandes ou quando a renderização é crítica.
-       */
       function Alert2() {
         function handleAlertClick(msg) {
           alert(msg);
@@ -104,7 +75,6 @@
         return (
           <div className="card">
             <h3>Exemplo 2: Com Parâmetro</h3>
-            {/* Arrow function inline usada intencionalmente por clareza */}
             <button
               type="button"
               onClick={() =>
@@ -117,40 +87,17 @@
         );
       }
 
-      // ================================================
-      // Alert 3: REFATORADO - Componente Controlado (Controlled Component)
-      // ================================================
-      /**
-       * Componente `Alert3` — exemplo de componente controlado.
-       *
-       * Objetivo do estado `inputValue`:
-       * - Manter o valor do input como "single source of truth" dentro do React,
-       *   evitando leituras diretas do DOM (melhor testabilidade e previsibilidade).
-       * - Permitir validações e manipulações antes de submeter ou exibir o valor.
-       *
-       * Estratégia de validação:
-       * - `handleAlertClick` verifica `inputValue.trim()` para prevenir entradas vazias
-       *   e fornece feedback imediato ao usuário.
-       * - Após uso, o input é limpo com `setInputValue("")` para melhorar a experiência.
-       *
-       * Observações arquiteturais:
-       * - Essa abordagem separa apresentação (JSX) da lógica (handlers/validações),
-       *   o que facilita extração para hooks customizados ou testes unitários.
-       */
       function Alert3() {
         const [inputValue, setInputValue] = useState("");
 
         function handleAlertClick() {
-          // Validação simples: previne alertes com conteúdo apenas em branco
           if (!inputValue.trim()) {
             alert("Por favor, digite algo antes de clicar!");
             return;
           }
 
-          // Uso do estado como fonte de verdade para exibir o valor atual
           alert(`Você digitou: ${inputValue}`);
 
-          // Limpeza do estado após ação — decisão de UX para reiniciar o fluxo
           setInputValue("");
         }
 
@@ -161,7 +108,6 @@
               type="text"
               placeholder="Digite algo..."
               value={inputValue}
-              // Atualiza apenas o estado: mantém o input sincronizado com React
               onChange={(event) => setInputValue(event.target.value)}
             />
             <button type="button" onClick={handleAlertClick}>
@@ -171,27 +117,6 @@
         );
       }
 
-      // ================================================
-      // Componente Principal
-      // ================================================
-      /**
-       * App
-       * Componente raiz deste exemplo pedagógico sobre eventos no React.
-       *
-       * Propósito:
-       * - Renderiza três variações de tratamento de eventos (simples, com
-       *   parâmetro e componente controlado) para demonstrar boas práticas.
-       *
-       * O que renderiza:
-       * - Cabeçalho informativo e os componentes `Alert1`, `Alert2`, `Alert3`.
-       *
-       * Props: este componente não recebe props (apenas demonstração).
-       *
-       * Razão arquitetural:
-       * - Mantivemos cada exemplo em seu próprio componente para isolamento
-       *   de responsabilidades e melhor testabilidade. Isso facilita a extração
-       *   de cada padrão para uma biblioteca de componentes quando necessário.
-       */
       function App() {
         return (
           <main>
@@ -203,11 +128,6 @@
         );
       }
 
-      // Inicialização (React 18)
-      // Por que usar `createRoot`:
-      // - API do React 18 que habilita recursos como concurrent rendering
-      //   quando disponíveis. Mantemos a inicialização explícita aqui para
-      //   compatibilidade com os exemplos atuais.
       const rootElement = document.getElementById("root");
       ReactDOM.createRoot(rootElement).render(<App />);
     </script>
